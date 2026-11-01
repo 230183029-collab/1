@@ -10,6 +10,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Generate Xcode project
+        shell: bash
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
       - name: Find project
         shell: bash
         run: |
