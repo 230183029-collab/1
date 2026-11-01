@@ -7,6 +7,7 @@ on:
 jobs:
   build:
     runs-on: macos-latest
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
@@ -34,29 +35,50 @@ jobs:
       - name: Build
         shell: bash
         run: |
-          xcodebuild -project "$PROJ" -scheme Wanderlist -configuration Debug \
+          set -o pipefail
+          xcodebuild build-for-testing -project "$PROJ" -scheme Wanderlist -configuration Debug \
             -destination "id=$UDID" -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee build.log
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee build.log
 
-      - name: Run in simulator and record video
+      - name: Run tour in simulator and record video
         shell: bash
         run: |
-          xcrun simctl boot "$UDID"
+          xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
-          APP=$(find build/Build/Products -name "Wanderlist.app" | head -1)
-          xcrun simctl install "$UDID" "$APP"
-          xcrun simctl io "$UDID" recordVideo --codec h264 --force demo.mp4 &
+          sleep 5
+          xcrun simctl io "$UDID" recordVideo --codec h264 --force demo_raw.mp4 &
           REC=$!
           sleep 3
-          xcrun simctl launch "$UDID" com.example.Wanderlist
-          sleep 8
-          xcrun simctl io "$UDID" screenshot screenshot.png
+          # screenshot in the middle of the tour
+          ( sleep 30; xcrun simctl io "$UDID" screenshot screenshot.png ) &
+          set +e
+          xcodebuild test-without-building -project "$PROJ" -scheme Wanderlist \
+            -destination "id=$UDID" -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee test.log
           sleep 3
+          [ -f screenshot.png ] || xcrun simctl io "$UDID" screenshot screenshot.png
           kill -INT $REC
-          wait $REC || true
+          wait $REC
+          sleep 2
+          ls -la demo_raw.mp4
           if ls ~/Library/Logs/DiagnosticReports/Wanderlist* 2>/dev/null; then
             echo "App crashed"; exit 1
           fi
+
+      - name: Fix video (constant frame rate)
+        if: always()
+        shell: bash
+        run: |
+          [ -f demo_raw.mp4 ] || exit 0
+          brew install ffmpeg || true
+          if command -v ffmpeg >/dev/null; then
+            ffmpeg -y -i demo_raw.mp4 \
+              -vf "fps=30,scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p" \
+              -c:v libx264 -preset fast -crf 23 -movflags +faststart demo.mp4 || cp demo_raw.mp4 demo.mp4
+          else
+            cp demo_raw.mp4 demo.mp4
+          fi
+          ls -la demo*.mp4
 
       - name: Upload results
         if: always()
@@ -65,5 +87,7 @@ jobs:
           name: results
           path: |
             demo.mp4
+            demo_raw.mp4
             screenshot.png
             build.log
+            test.log
