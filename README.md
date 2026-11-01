@@ -7,9 +7,13 @@ A small travel-planning app built with **Swift + UIKit, fully programmatic** (no
 
 ## Run it
 
-1. Open `Wanderlist.xcodeproj` in Xcode 14 or newer.
-2. Pick any iPhone simulator (iOS 15+).
-3. Press **Cmd+R**. No signing team is needed for the simulator.
+The Xcode project is generated from `project.yml` with XcodeGen.
+
+1. Install XcodeGen: `brew install xcodegen`
+2. Run `xcodegen generate` in this folder, then open `Wanderlist.xcodeproj` in Xcode 14 or newer.
+3. Pick any iPhone simulator (iOS 15+) and press Cmd+R. No signing team is needed.
+
+A ready-to-open Xcode project is also provided in the submitted ZIP. GitHub Actions builds the app on every push and records a simulator video (see the Actions tab).
 
 ## Requirements checklist
 
