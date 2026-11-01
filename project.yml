@@ -11,6 +11,8 @@ targets:
       - path: .
         includes:
           - "*.swift"
+        excludes:
+          - "DemoUITests.swift"
     settings:
       base:
         INFOPLIST_FILE: Info.plist
@@ -20,3 +22,30 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.0"
         TARGETED_DEVICE_FAMILY: "1,2"
+  WanderlistUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: .
+        includes:
+          - "DemoUITests.swift"
+    dependencies:
+      - target: Wanderlist
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.WanderlistUITests
+        SWIFT_VERSION: "5.0"
+        TEST_TARGET_NAME: Wanderlist
+schemes:
+  Wanderlist:
+    build:
+      targets:
+        Wanderlist: all
+        WanderlistUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - WanderlistUITests
