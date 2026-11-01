@@ -1,0 +1,63 @@
+name: Build and record
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find project
+        shell: bash
+        run: |
+          xcodebuild -version
+          PROJ=$(find . -maxdepth 3 -name "*.xcodeproj" | head -1)
+          echo "PROJ=$PROJ" >> $GITHUB_ENV
+          xcodebuild -list -project "$PROJ"
+
+      - name: Pick simulator
+        shell: bash
+        run: |
+          UDID=$(xcrun simctl list devices available | grep -E "iPhone [0-9]+" | head -1 | grep -oE '[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12}')
+          echo "Simulator: $UDID"
+          echo "UDID=$UDID" >> $GITHUB_ENV
+
+      - name: Build
+        shell: bash
+        run: |
+          xcodebuild -project "$PROJ" -scheme Wanderlist -configuration Debug \
+            -destination "id=$UDID" -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee build.log
+
+      - name: Run in simulator and record video
+        shell: bash
+        run: |
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          APP=$(find build/Build/Products -name "Wanderlist.app" | head -1)
+          xcrun simctl install "$UDID" "$APP"
+          xcrun simctl io "$UDID" recordVideo --codec h264 --force demo.mp4 &
+          REC=$!
+          sleep 3
+          xcrun simctl launch "$UDID" com.example.Wanderlist
+          sleep 8
+          xcrun simctl io "$UDID" screenshot screenshot.png
+          sleep 3
+          kill -INT $REC
+          wait $REC || true
+          if ls ~/Library/Logs/DiagnosticReports/Wanderlist* 2>/dev/null; then
+            echo "App crashed"; exit 1
+          fi
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: results
+          path: |
+            demo.mp4
+            screenshot.png
+            build.log
